@@ -1,0 +1,26 @@
+# Environment variables — never commit secrets
+.env
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverrideIcon
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+openconverse
+*.test
+*.out
+
+# Go module cache
+vendor/
+
+# IDE
+.vscode/
+.kiro/
+*.iml
+.idea/
