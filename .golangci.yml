@@ -1,0 +1,37 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+    - bodyclose
+    - contextcheck
+    - noctx
+
+linters-settings:
+  goimports:
+    local-prefixes: naboo-audio
+  revive:
+    severity: warning
+    rules:
+      - name: exported
+      - name: var-naming
+      - name: error-return
+      - name: error-strings
+      - name: range
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10
+
+run:
+  timeout: 5m
