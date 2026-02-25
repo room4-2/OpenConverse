@@ -1,9 +1,10 @@
 .PHONY: help build run test lint fmt vet tidy install-tools pre-commit-install clean \
         docker-build docker-up docker-down docker-logs docker-clean
 
-BINARY := openconverse
-GO     := go
-LINT   := golangci-lint
+BINARY  := openconverse
+GO      := go
+LINT    := golangci-lint
+COMPOSE := docker compose -f compose.dev.yml
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -54,16 +55,16 @@ clean:
 
 
 docker-build:
-	docker compose build
+	$(COMPOSE) build
 
 docker-up:
-	docker compose up -d
+	$(COMPOSE) up -d
 
 docker-down:
-	docker compose down
+	$(COMPOSE) down
 
 docker-logs:
-	docker compose logs -f
+	$(COMPOSE) logs -f
 
 docker-clean:
-	docker compose down -v --rmi local
+	$(COMPOSE) down -v --rmi local
