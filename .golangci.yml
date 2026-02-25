@@ -4,22 +4,28 @@ linters:
   default: none
   enable:
     - errcheck
-    - gosimple
+    # - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
     - revive
     - bodyclose
     - contextcheck
     - noctx
 
-linters-settings:
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+formatters-settings:
   goimports:
-    local-prefixes: naboo-audio
+    local-prefixes:
+      - naboo-audio
+
+linters-settings:
   revive:
     severity: warning
     rules:
