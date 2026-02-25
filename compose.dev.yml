@@ -1,7 +1,6 @@
 services:
 
-  # ── OpenConverse server ──────────────────────────────────────────────────────
-  app:
+  openconverse:
     build:
       context: .
       dockerfile: Dockerfile
@@ -13,7 +12,6 @@ services:
     env_file:
       - .env
     environment:
-      # Override Redis URL so the app reaches the redis container by name
       REDIS_URL: redis:6379
     depends_on:
       redis:
@@ -27,7 +25,6 @@ services:
     networks:
       - openconverse
 
-  # ── Redis (optional session persistence) ────────────────────────────────────
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -47,10 +44,8 @@ services:
       start_period: 5s
     networks:
       - openconverse
-    # Redis is NOT exposed to the host by default — only reachable inside the network.
-    # Uncomment below if you need direct access for debugging:
-    # ports:
-    #   - "6379:6379"
+    ports:
+      - "6379:6379"
 
 volumes:
   redis_data:
