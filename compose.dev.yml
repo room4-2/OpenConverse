@@ -1,0 +1,60 @@
+services:
+
+  # ── OpenConverse server ──────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: openconverse:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+      - "${TWILIO_PORT:-8081}:8081"
+    env_file:
+      - .env
+    environment:
+      # Override Redis URL so the app reaches the redis container by name
+      REDIS_URL: redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${PORT:-8080}/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - openconverse
+
+  # ── Redis (optional session persistence) ────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - openconverse
+    # Redis is NOT exposed to the host by default — only reachable inside the network.
+    # Uncomment below if you need direct access for debugging:
+    # ports:
+    #   - "6379:6379"
+
+volumes:
+  redis_data:
+
+networks:
+  openconverse:
+    driver: bridge
