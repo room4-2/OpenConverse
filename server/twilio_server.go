@@ -97,7 +97,7 @@ func (s *WebsocketTwilio) handleWebsocketTwilio(w http.ResponseWriter, r *http.R
 	<-clientSession.CloseChan
 
 	// Clean up
-	_ = s.sessionManager.RemoveSession(clientSession.ID)
+	_ = s.sessionManager.RemoveSession(r.Context(), clientSession.ID)
 	log.Printf("📞 Twilio session closed: %s", clientSession.ID)
 }
 

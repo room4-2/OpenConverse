@@ -98,7 +98,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	<-clientSession.CloseChan
 
 	// Clean up
-	_ = s.sessionManager.RemoveSession(clientSession.ID)
+	_ = s.sessionManager.RemoveSession(r.Context(), clientSession.ID)
 	log.Printf("🔌 Session closed: %s", clientSession.ID)
 }
 

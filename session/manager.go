@@ -189,7 +189,7 @@ func (sm *Manager) CreateSession(ctx context.Context, clientConn *websocket.Conn
 		return nil, err
 	}
 
-	sm.storeSession(sessionID, session)
+	sm.storeSession(ctx, sessionID, session)
 	return session, nil
 }
 
@@ -209,16 +209,15 @@ func (sm *Manager) CreateTwilioSession(ctx context.Context, clientConn *websocke
 		return nil, err
 	}
 
-	sm.storeSession(sessionID, session)
+	sm.storeSession(ctx, sessionID, session)
 	return session, nil
 }
 
 // storeSession saves a session to memory and Redis
-func (sm *Manager) storeSession(sessionID string, session *ClientSession) {
+func (sm *Manager) storeSession(ctx context.Context, sessionID string, session *ClientSession) {
 	sm.sessions[sessionID] = session
 
 	if sm.redis != nil {
-		ctx := context.Background()
 		sm.redis.HSet(ctx, "session:"+sessionID, map[string]interface{}{
 			"created_at":    session.CreatedAt.Format(time.RFC3339),
 			"last_activity": session.LastActivity.Format(time.RFC3339),
@@ -240,7 +239,7 @@ func (sm *Manager) GetSession(sessionID string) (*ClientSession, bool) {
 }
 
 // RemoveSession cleans up and removes a session
-func (sm *Manager) RemoveSession(sessionID string) error {
+func (sm *Manager) RemoveSession(ctx context.Context, sessionID string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -253,7 +252,6 @@ func (sm *Manager) RemoveSession(sessionID string) error {
 	delete(sm.sessions, sessionID)
 
 	if sm.redis != nil {
-		ctx := context.Background()
 		sm.redis.Del(ctx, "session:"+sessionID)
 		sm.redis.SRem(ctx, "active_sessions", sessionID)
 	}
@@ -280,7 +278,6 @@ func (sm *Manager) CleanupInactiveSessions(ctx context.Context) {
 			delete(sm.sessions, id)
 
 			if sm.redis != nil {
-				ctx := context.Background()
 				sm.redis.Del(ctx, "session:"+id)
 				sm.redis.SRem(ctx, "active_sessions", id)
 			}
