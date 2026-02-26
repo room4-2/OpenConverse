@@ -1,0 +1,29 @@
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - revive
+    - bodyclose
+    - contextcheck
+    - noctx
+
+linters-settings:
+  revive:
+    severity: warning
+    rules:
+      - name: exported
+      - name: var-naming
+      - name: error-return
+      - name: error-strings
+      - name: range
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10
+
+run:
+  timeout: 5m
