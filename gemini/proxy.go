@@ -15,8 +15,8 @@ const (
 	//modelName = "models/gemini-3-flash-preview"
 )
 
-// GeminiProxy manages the connection to Gemini Live API using the official SDK
-type GeminiProxy struct {
+// Proxy manages the connection to Gemini Live API using the official SDK
+type Proxy struct {
 	client  *genai.Client
 	session *genai.Session
 
@@ -32,10 +32,8 @@ type GeminiProxy struct {
 	closed bool
 }
 
-// NewGeminiProxy creates and connects to Gemini Live API
-func NewGeminiProxy(apiKey string) (*GeminiProxy, error) {
-	ctx := context.Background()
-
+// NewProxy creates and connects to Gemini Live API
+func NewProxy(ctx context.Context, apiKey string) (*Proxy, error) {
 	// Initialize the Client
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  apiKey,
@@ -45,13 +43,13 @@ func NewGeminiProxy(apiKey string) (*GeminiProxy, error) {
 		return nil, fmt.Errorf("failed to create GenAI client: %w", err)
 	}
 
-	return &GeminiProxy{
+	return &Proxy{
 		client: client,
 	}, nil
 }
 
 // Setup establishes the Live session
-func (gp *GeminiProxy) Setup(systemPrompt string, tools []*genai.Tool) error {
+func (gp *Proxy) Setup(systemPrompt string, tools []*genai.Tool) error {
 	gp.mu.Lock()
 	defer gp.mu.Unlock()
 
@@ -92,7 +90,7 @@ func (gp *GeminiProxy) Setup(systemPrompt string, tools []*genai.Tool) error {
 }
 
 // StartReceiving begins listening for Gemini responses
-func (gp *GeminiProxy) StartReceiving(ctx context.Context) {
+func (gp *Proxy) StartReceiving(ctx context.Context) {
 	go func() {
 		defer func() {
 			if gp.OnError != nil {
@@ -130,7 +128,7 @@ func (gp *GeminiProxy) StartReceiving(ctx context.Context) {
 	}()
 }
 
-func (gp *GeminiProxy) handleResponse(resp *genai.LiveServerMessage) {
+func (gp *Proxy) handleResponse(resp *genai.LiveServerMessage) {
 	// Handle Tool Calls
 	if resp.ToolCall != nil && len(resp.ToolCall.FunctionCalls) > 0 {
 		log.Printf("📥 Received from Gemini: %d function call(s)", len(resp.ToolCall.FunctionCalls))
@@ -169,12 +167,12 @@ func (gp *GeminiProxy) handleResponse(resp *genai.LiveServerMessage) {
 }
 
 // SendAudio forwards an audio chunk to Gemini
-func (gp *GeminiProxy) SendAudio(audioData []byte) error {
+func (gp *Proxy) SendAudio(audioData []byte) error {
 	return gp.sendRealtimeInput(audioData)
 }
 
 // SendAudioBatch sends complete batched audio data to Gemini
-func (gp *GeminiProxy) SendAudioBatch(audioData []byte) error {
+func (gp *Proxy) SendAudioBatch(audioData []byte) error {
 	if len(audioData) == 0 {
 		return nil
 	}
@@ -190,7 +188,7 @@ func (gp *GeminiProxy) SendAudioBatch(audioData []byte) error {
 }
 
 // SendAudioBase64 forwards base64-encoded audio to Gemini
-func (gp *GeminiProxy) SendAudioBase64(encodedAudio string) error {
+func (gp *Proxy) SendAudioBase64(encodedAudio string) error {
 	data, err := base64.StdEncoding.DecodeString(encodedAudio)
 	if err != nil {
 		return fmt.Errorf("invalid base64: %w", err)
@@ -199,7 +197,7 @@ func (gp *GeminiProxy) SendAudioBase64(encodedAudio string) error {
 }
 
 // SendText sends a text message to Gemini (useful for testing)
-func (gp *GeminiProxy) SendText(text string) error {
+func (gp *Proxy) SendText(text string) error {
 	gp.mu.RLock()
 	session := gp.session
 	closed := gp.closed
@@ -227,7 +225,7 @@ func (gp *GeminiProxy) SendText(text string) error {
 	return nil
 }
 
-func (gp *GeminiProxy) sendRealtimeInput(data []byte) error {
+func (gp *Proxy) sendRealtimeInput(data []byte) error {
 	gp.mu.RLock()
 	session := gp.session
 	closed := gp.closed
@@ -253,7 +251,7 @@ func (gp *GeminiProxy) sendRealtimeInput(data []byte) error {
 	return nil
 }
 
-func (gp *GeminiProxy) sendTurnComplete() error {
+func (gp *Proxy) sendTurnComplete() error {
 	gp.mu.RLock()
 	session := gp.session
 	closed := gp.closed
@@ -277,7 +275,7 @@ func (gp *GeminiProxy) sendTurnComplete() error {
 }
 
 // SendToolResponse sends function call responses back to Gemini
-func (gp *GeminiProxy) SendToolResponse(responses []*genai.FunctionResponse) error {
+func (gp *Proxy) SendToolResponse(responses []*genai.FunctionResponse) error {
 	gp.mu.RLock()
 	session := gp.session
 	closed := gp.closed
@@ -299,7 +297,7 @@ func (gp *GeminiProxy) SendToolResponse(responses []*genai.FunctionResponse) err
 }
 
 // Close terminates the Gemini connection
-func (gp *GeminiProxy) Close() error {
+func (gp *Proxy) Close() error {
 	gp.mu.Lock()
 	defer gp.mu.Unlock()
 

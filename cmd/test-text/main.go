@@ -15,7 +15,7 @@ func main() {
 		log.Fatal("GEMINI_API_KEY not set")
 	}
 
-	proxy, err := gemini.NewGeminiProxy(apiKey)
+	proxy, err := gemini.NewProxy(context.Background(), apiKey)
 	if err != nil {
 		log.Fatalf("Failed to create proxy: %v", err)
 	}

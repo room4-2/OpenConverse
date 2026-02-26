@@ -85,7 +85,7 @@ func (p *AudioPlayer) Play(audioData []byte) {
 	if p.closed || p.stdin == nil {
 		return
 	}
-	p.stdin.Write(audioData)
+	_, _ = p.stdin.Write(audioData)
 }
 
 func (p *AudioPlayer) Close() {
@@ -99,7 +99,7 @@ func (p *AudioPlayer) Close() {
 		p.stdin.Close()
 	}
 	if p.cmd != nil && p.cmd.Process != nil {
-		p.cmd.Wait()
+		_ = p.cmd.Wait()
 	}
 }
 
@@ -152,7 +152,10 @@ func main() {
 			switch msg.Type {
 			case "audio":
 				var payload AudioResponsePayload
-				json.Unmarshal(msg.Payload, &payload)
+				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+					log.Println("Parse audio payload error:", err)
+					continue
+				}
 				audioBytes, err := base64.StdEncoding.DecodeString(payload.Data)
 				if err == nil {
 					log.Printf("🔊 Playing audio: %d bytes", len(audioBytes))
@@ -161,12 +164,18 @@ func main() {
 
 			case "text":
 				var payload TextResponsePayload
-				json.Unmarshal(msg.Payload, &payload)
+				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+					log.Println("Parse text payload error:", err)
+					continue
+				}
 				fmt.Printf("📝 %s\n", payload.Text)
 
 			case "status":
 				var payload StatusPayload
-				json.Unmarshal(msg.Payload, &payload)
+				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+					log.Println("Parse status payload error:", err)
+					continue
+				}
 				log.Printf("📊 Status: %s %s", payload.Status, payload.Message)
 				if payload.Status == "turn_complete" {
 					log.Println("--- Turn complete ---")
@@ -218,7 +227,7 @@ func main() {
 		log.Println("Connection closed")
 	case <-interrupt:
 		log.Println("\n👋 Interrupted, closing...")
-		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	case <-time.After(30 * time.Second):
 		log.Println("⏰ Timeout waiting for response")
 	}
