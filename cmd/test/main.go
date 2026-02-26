@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/gorilla/websocket"
 )
 
@@ -102,7 +103,6 @@ func (p *AudioPlayer) Close() {
 		_ = p.cmd.Wait()
 	}
 }
-
 func main() {
 	// Flags
 	serverURL := flag.String("server", "ws://localhost:8080/ws", "WebSocket server URL")
@@ -144,7 +144,7 @@ func main() {
 			}
 
 			var msg ServerMessage
-			if err := json.Unmarshal(message, &msg); err != nil {
+			if err := sonic.Unmarshal(message, &msg); err != nil {
 				log.Println("Parse error:", err)
 				continue
 			}
@@ -152,7 +152,7 @@ func main() {
 			switch msg.Type {
 			case "audio":
 				var payload AudioResponsePayload
-				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+				if err := sonic.Unmarshal(msg.Payload, &payload); err != nil {
 					log.Println("Parse audio payload error:", err)
 					continue
 				}
@@ -164,7 +164,7 @@ func main() {
 
 			case "text":
 				var payload TextResponsePayload
-				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+				if err := sonic.Unmarshal(msg.Payload, &payload); err != nil {
 					log.Println("Parse text payload error:", err)
 					continue
 				}
@@ -172,7 +172,7 @@ func main() {
 
 			case "status":
 				var payload StatusPayload
-				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+				if err := sonic.Unmarshal(msg.Payload, &payload); err != nil {
 					log.Println("Parse status payload error:", err)
 					continue
 				}
