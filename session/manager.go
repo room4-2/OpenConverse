@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"naboo-audio/config"
-	"naboo-audio/functions"
+	"github.com/room4-2/OpenConverse/config"
+	"github.com/room4-2/OpenConverse/functions"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"

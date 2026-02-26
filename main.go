@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"naboo-audio/config"
-	"naboo-audio/server"
-	"naboo-audio/session"
+	"github.com/room4-2/OpenConverse/config"
+	"github.com/room4-2/OpenConverse/server"
+	"github.com/room4-2/OpenConverse/session"
 )
 
 func main() {

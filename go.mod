@@ -1,4 +1,4 @@
-module naboo-audio
+module github.com/room4-2/OpenConverse
 
 go 1.24.3
 
