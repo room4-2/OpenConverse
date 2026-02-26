@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/bytedance/sonic"
 
 	"github.com/room4-2/OpenConverse/functions"
 	"github.com/room4-2/OpenConverse/gemini"
@@ -327,7 +328,7 @@ func (cs *ClientSession) handleClientMessagesFromTwilio() {
 			cs.mu.Unlock()
 
 			var msg map[string]interface{}
-			if err := json.Unmarshal(message, &msg); err != nil {
+			if err := sonic.Unmarshal(message, &msg); err != nil {
 				log.Printf("⚠️ [%s] Failed to parse Twilio message: %v", cs.ID[:8], err)
 				continue
 			}
@@ -444,7 +445,7 @@ func (cs *ClientSession) handleClientMessages() {
 
 			// Handle text messages (JSON)
 			var clientMsg messages.ClientMessage
-			if err := json.Unmarshal(message, &clientMsg); err != nil {
+			if err := sonic.Unmarshal(message, &clientMsg); err != nil {
 				cs.queueMessage(messages.NewErrorMessage(cs.ID, messages.ErrCodeInvalidMessage, "Invalid message format"))
 				continue
 			}
@@ -458,7 +459,7 @@ func (cs *ClientSession) processClientMessage(msg *messages.ClientMessage) {
 	switch msg.Type {
 	case "audio":
 		var payload messages.AudioPayload
-		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		if err := sonic.Unmarshal(msg.Payload, &payload); err != nil {
 			cs.queueMessage(messages.NewErrorMessage(cs.ID, messages.ErrCodeInvalidMessage, "Invalid audio payload"))
 			return
 		}
@@ -477,7 +478,7 @@ func (cs *ClientSession) processClientMessage(msg *messages.ClientMessage) {
 	case "audio_binary":
 		// Handle binary audio (more efficient)
 		var payload messages.AudioPayload
-		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		if err := sonic.Unmarshal(msg.Payload, &payload); err != nil {
 			return
 		}
 		// Decode and buffer
@@ -489,7 +490,7 @@ func (cs *ClientSession) processClientMessage(msg *messages.ClientMessage) {
 
 	case "control":
 		var payload messages.ControlPayload
-		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		if err := sonic.Unmarshal(msg.Payload, &payload); err != nil {
 			cs.queueMessage(messages.NewErrorMessage(cs.ID, messages.ErrCodeInvalidMessage, "Invalid control payload"))
 			return
 		}
