@@ -1,10 +1,6 @@
-version: "2"
-
 linters:
-  default: none
   enable:
     - errcheck
-    # - gosimple
     - govet
     - ineffassign
     - staticcheck
@@ -14,16 +10,6 @@ linters:
     - bodyclose
     - contextcheck
     - noctx
-
-formatters:
-  enable:
-    - gofmt
-    - goimports
-
-formatters-settings:
-  goimports:
-    local-prefixes:
-      - naboo-audio
 
 linters-settings:
   revive:
