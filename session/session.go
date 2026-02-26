@@ -53,7 +53,7 @@ func NewClientSession(ctx context.Context, id string, clientConn *websocket.Conn
 		return nil, fmt.Errorf("failed to create Gemini proxy: %w", err)
 	}
 
-	if err := proxy.Setup(systemPrompt, tools); err != nil {
+	if err := proxy.Setup(ctx, systemPrompt, tools); err != nil {
 		proxy.Close()
 		return nil, fmt.Errorf("failed to setup Gemini session: %w", err)
 	}

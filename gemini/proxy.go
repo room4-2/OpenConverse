@@ -49,15 +49,13 @@ func NewProxy(ctx context.Context, apiKey string) (*Proxy, error) {
 }
 
 // Setup establishes the Live session
-func (gp *Proxy) Setup(systemPrompt string, tools []*genai.Tool) error {
+func (gp *Proxy) Setup(ctx context.Context, systemPrompt string, tools []*genai.Tool) error {
 	gp.mu.Lock()
 	defer gp.mu.Unlock()
 
 	if gp.closed {
 		return fmt.Errorf("proxy is closed")
 	}
-
-	ctx := context.Background()
 
 	// Configure the Live Session
 	config := &genai.LiveConnectConfig{

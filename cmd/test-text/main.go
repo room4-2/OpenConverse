@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// Setup session (no tools for this test)
-	err = proxy.Setup("You are a helpful assistant. Keep responses brief.", nil)
+	err = proxy.Setup(context.Background(), "You are a helpful assistant. Keep responses brief.", nil)
 	if err != nil {
 		log.Fatalf("Failed to setup: %v", err)
 	}
