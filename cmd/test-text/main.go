@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"naboo-audio/gemini"
+	"github.com/room4-2/OpenConverse/gemini"
 )
 
 func main() {

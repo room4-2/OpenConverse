@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"naboo-audio/config"
-	"naboo-audio/messages"
-	"naboo-audio/session"
+	"github.com/room4-2/OpenConverse/config"
+	"github.com/room4-2/OpenConverse/messages"
+	"github.com/room4-2/OpenConverse/session"
 
 	"github.com/gorilla/websocket"
 )

@@ -7,11 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"naboo-audio/functions"
-	"naboo-audio/gemini"
-	"naboo-audio/messages"
 	"sync"
 	"time"
+
+	"github.com/room4-2/OpenConverse/functions"
+	"github.com/room4-2/OpenConverse/gemini"
+	"github.com/room4-2/OpenConverse/messages"
 
 	"github.com/gorilla/websocket"
 	"google.golang.org/genai"
