@@ -12,15 +12,15 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type ServerWebsocketTwilio struct {
+type WebsocketTwilio struct {
 	httpServer     *http.Server
 	upgrader       websocket.Upgrader
-	sessionManager *session.SessionManager
+	sessionManager *session.Manager
 	config         *config.Config
 }
 
-func NewServerWebsocketTwilio(cfg *config.Config, sessionManager *session.SessionManager) *ServerWebsocketTwilio {
-	s := &ServerWebsocketTwilio{
+func NewWebsocketTwilio(cfg *config.Config, sessionManager *session.Manager) *WebsocketTwilio {
+	s := &WebsocketTwilio{
 		sessionManager: sessionManager,
 		config:         cfg,
 		upgrader: websocket.Upgrader{
@@ -59,7 +59,7 @@ func NewServerWebsocketTwilio(cfg *config.Config, sessionManager *session.Sessio
 }
 
 // Start begins listening for connections
-func (s *ServerWebsocketTwilio) Start() error {
+func (s *WebsocketTwilio) Start() error {
 	port := s.httpServer.Addr
 	log.Printf("📞 Twilio WebSocket server starting on %s", port)
 	log.Printf("📡 Twilio stream endpoint: ws://localhost%s/stream", port)
@@ -68,12 +68,12 @@ func (s *ServerWebsocketTwilio) Start() error {
 }
 
 // Shutdown gracefully stops the server
-func (s *ServerWebsocketTwilio) Shutdown(ctx context.Context) error {
+func (s *WebsocketTwilio) Shutdown(ctx context.Context) error {
 	log.Println("Shutting down Twilio server...")
 	return s.httpServer.Shutdown(ctx)
 }
 
-func (s *ServerWebsocketTwilio) handleWebsocketTwilio(w http.ResponseWriter, r *http.Request) {
+func (s *WebsocketTwilio) handleWebsocketTwilio(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Twilio WebSocket upgrade failed: %v", err)
@@ -81,7 +81,7 @@ func (s *ServerWebsocketTwilio) handleWebsocketTwilio(w http.ResponseWriter, r *
 	}
 
 	// Create Twilio-specific session
-	clientSession, err := s.sessionManager.CreateTwilioSession(conn)
+	clientSession, err := s.sessionManager.CreateTwilioSession(r.Context(), conn)
 	if err != nil {
 		log.Printf("Failed to create Twilio session: %v", err)
 		conn.Close()
@@ -97,11 +97,11 @@ func (s *ServerWebsocketTwilio) handleWebsocketTwilio(w http.ResponseWriter, r *
 	<-clientSession.CloseChan
 
 	// Clean up
-	s.sessionManager.RemoveSession(clientSession.ID)
+	_ = s.sessionManager.RemoveSession(clientSession.ID)
 	log.Printf("📞 Twilio session closed: %s", clientSession.ID)
 }
 
-func (s *ServerWebsocketTwilio) handleVoiceCall(w http.ResponseWriter, r *http.Request) {
+func (s *WebsocketTwilio) handleVoiceCall(w http.ResponseWriter, r *http.Request) {
 	wsURL := "wss://" + r.Host + "/stream"
 
 	// TwiML to connect the call to the WebSocket stream
@@ -114,16 +114,16 @@ func (s *ServerWebsocketTwilio) handleVoiceCall(w http.ResponseWriter, r *http.R
 </Response>`, wsURL)
 
 	w.Header().Set("Content-Type", "text/xml")
-	w.Write([]byte(xmlResponse))
+	_, _ = w.Write([]byte(xmlResponse))
 }
 
-func (s *ServerWebsocketTwilio) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (s *WebsocketTwilio) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, `{"status":"ok","server":"twilio","sessions":%d}`, s.sessionManager.GetActiveSessionCount())
 }
 
 // GetAddr returns the server's listen address (for logging in main)
-func (s *ServerWebsocketTwilio) GetAddr() string {
+func (s *WebsocketTwilio) GetAddr() string {
 	return s.httpServer.Addr
 }

@@ -28,7 +28,7 @@ type Config struct {
 // LoadConfig loads configuration from environment variables with defaults
 func LoadConfig() (*Config, error) {
 	// Load .env file if it exists (doesn't error if missing)
-	godotenv.Load()
+	_ = godotenv.Load()
 
 	config := &Config{
 		Port:            8080,

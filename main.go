@@ -21,7 +21,7 @@ func main() {
 	}
 
 	// Create session manager
-	sessionManager, err := session.NewSessionManager(cfg)
+	sessionManager, err := session.NewManager(cfg)
 	if err != nil {
 		log.Fatalf("Failed to create session manager: %v", err)
 	}
@@ -54,7 +54,7 @@ func main() {
 		}
 
 	case "twilio":
-		twilioSrv := server.NewServerWebsocketTwilio(cfg, sessionManager)
+		twilioSrv := server.NewWebsocketTwilio(cfg, sessionManager)
 
 		go func() {
 			<-sigChan
@@ -74,7 +74,7 @@ func main() {
 
 	case "both":
 		srv := server.NewServerWebsocket(cfg, sessionManager)
-		twilioSrv := server.NewServerWebsocketTwilio(cfg, sessionManager)
+		twilioSrv := server.NewWebsocketTwilio(cfg, sessionManager)
 
 		go func() {
 			<-sigChan

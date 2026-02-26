@@ -17,11 +17,11 @@ import (
 type Server struct {
 	httpServer     *http.Server
 	upgrader       websocket.Upgrader
-	sessionManager *session.SessionManager
+	sessionManager *session.Manager
 	config         *config.Config
 }
 
-func NewServerWebsocket(cfg *config.Config, sessionManager *session.SessionManager) *Server {
+func NewServerWebsocket(cfg *config.Config, sessionManager *session.Manager) *Server {
 	s := &Server{
 		sessionManager: sessionManager,
 		config:         cfg,
@@ -79,12 +79,12 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create session
-	clientSession, err := s.sessionManager.CreateSession(conn)
+	clientSession, err := s.sessionManager.CreateSession(r.Context(), conn)
 	if err != nil {
 		log.Printf("Failed to create session: %v", err)
 		// Send error and close
 		errMsg := messages.NewErrorMessage("", messages.ErrCodeSessionFailed, err.Error())
-		conn.WriteJSON(errMsg)
+		_ = conn.WriteJSON(errMsg)
 		conn.Close()
 		return
 	}
@@ -98,7 +98,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	<-clientSession.CloseChan
 
 	// Clean up
-	s.sessionManager.RemoveSession(clientSession.ID)
+	_ = s.sessionManager.RemoveSession(clientSession.ID)
 	log.Printf("🔌 Session closed: %s", clientSession.ID)
 }
 
