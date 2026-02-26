@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"naboo-audio/config"
-	"naboo-audio/functions"
+	"github.com/room4-2/OpenConverse/config"
+	"github.com/room4-2/OpenConverse/functions"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -126,8 +126,8 @@ You are a friendly, empathetic, and patient AI phone assistant for **Somone Burg
 ---
 `
 
-// SessionManager manages all client sessions
-type SessionManager struct {
+// Manager manages all client sessions
+type Manager struct {
 	sessions  map[string]*ClientSession
 	mu        sync.RWMutex
 	redis     *redis.Client
@@ -135,8 +135,8 @@ type SessionManager struct {
 	geminiKey string
 }
 
-// NewSessionManager creates a session manager with Redis connection
-func NewSessionManager(cfg *config.Config) (*SessionManager, error) {
+// NewManager creates a session manager with Redis connection
+func NewManager(cfg *config.Config) (*Manager, error) {
 	var redisClient *redis.Client
 
 	// Try to connect to Redis, but don't fail if unavailable
@@ -155,7 +155,7 @@ func NewSessionManager(cfg *config.Config) (*SessionManager, error) {
 		redisClient = nil
 	}
 
-	return &SessionManager{
+	return &Manager{
 		sessions:  make(map[string]*ClientSession),
 		redis:     redisClient,
 		config:    cfg,
@@ -174,7 +174,7 @@ func buildTools() []*genai.Tool {
 }
 
 // CreateSession creates a new client session
-func (sm *SessionManager) CreateSession(clientConn *websocket.Conn) (*ClientSession, error) {
+func (sm *Manager) CreateSession(ctx context.Context, clientConn *websocket.Conn) (*ClientSession, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -184,17 +184,17 @@ func (sm *SessionManager) CreateSession(clientConn *websocket.Conn) (*ClientSess
 
 	sessionID := uuid.New().String()
 
-	session, err := NewClientSession(sessionID, clientConn, sm.geminiKey, defaultSystemPrompt, sm.config.MaxBufferSize, buildTools())
+	session, err := NewClientSession(ctx, sessionID, clientConn, sm.geminiKey, defaultSystemPrompt, sm.config.MaxBufferSize, buildTools())
 	if err != nil {
 		return nil, err
 	}
 
-	sm.storeSession(sessionID, session)
+	sm.storeSession(ctx, sessionID, session)
 	return session, nil
 }
 
 // CreateTwilioSession creates a new Twilio voice call session
-func (sm *SessionManager) CreateTwilioSession(clientConn *websocket.Conn) (*ClientSession, error) {
+func (sm *Manager) CreateTwilioSession(ctx context.Context, clientConn *websocket.Conn) (*ClientSession, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -204,21 +204,20 @@ func (sm *SessionManager) CreateTwilioSession(clientConn *websocket.Conn) (*Clie
 
 	sessionID := uuid.New().String()
 
-	session, err := NewTwilioClientSession(sessionID, clientConn, sm.geminiKey, defaultSystemPrompt, sm.config.MaxBufferSize, buildTools())
+	session, err := NewTwilioClientSession(ctx, sessionID, clientConn, sm.geminiKey, defaultSystemPrompt, sm.config.MaxBufferSize, buildTools())
 	if err != nil {
 		return nil, err
 	}
 
-	sm.storeSession(sessionID, session)
+	sm.storeSession(ctx, sessionID, session)
 	return session, nil
 }
 
 // storeSession saves a session to memory and Redis
-func (sm *SessionManager) storeSession(sessionID string, session *ClientSession) {
+func (sm *Manager) storeSession(ctx context.Context, sessionID string, session *ClientSession) {
 	sm.sessions[sessionID] = session
 
 	if sm.redis != nil {
-		ctx := context.Background()
 		sm.redis.HSet(ctx, "session:"+sessionID, map[string]interface{}{
 			"created_at":    session.CreatedAt.Format(time.RFC3339),
 			"last_activity": session.LastActivity.Format(time.RFC3339),
@@ -231,7 +230,7 @@ func (sm *SessionManager) storeSession(sessionID string, session *ClientSession)
 }
 
 // GetSession retrieves a session by ID
-func (sm *SessionManager) GetSession(sessionID string) (*ClientSession, bool) {
+func (sm *Manager) GetSession(sessionID string) (*ClientSession, bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
@@ -240,7 +239,7 @@ func (sm *SessionManager) GetSession(sessionID string) (*ClientSession, bool) {
 }
 
 // RemoveSession cleans up and removes a session
-func (sm *SessionManager) RemoveSession(sessionID string) error {
+func (sm *Manager) RemoveSession(ctx context.Context, sessionID string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -253,7 +252,6 @@ func (sm *SessionManager) RemoveSession(sessionID string) error {
 	delete(sm.sessions, sessionID)
 
 	if sm.redis != nil {
-		ctx := context.Background()
 		sm.redis.Del(ctx, "session:"+sessionID)
 		sm.redis.SRem(ctx, "active_sessions", sessionID)
 	}
@@ -262,14 +260,14 @@ func (sm *SessionManager) RemoveSession(sessionID string) error {
 }
 
 // GetActiveSessionCount returns current session count
-func (sm *SessionManager) GetActiveSessionCount() int {
+func (sm *Manager) GetActiveSessionCount() int {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return len(sm.sessions)
 }
 
 // CleanupInactiveSessions removes sessions that have been inactive
-func (sm *SessionManager) CleanupInactiveSessions() {
+func (sm *Manager) CleanupInactiveSessions(ctx context.Context) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -280,7 +278,6 @@ func (sm *SessionManager) CleanupInactiveSessions() {
 			delete(sm.sessions, id)
 
 			if sm.redis != nil {
-				ctx := context.Background()
 				sm.redis.Del(ctx, "session:"+id)
 				sm.redis.SRem(ctx, "active_sessions", id)
 			}
@@ -289,7 +286,7 @@ func (sm *SessionManager) CleanupInactiveSessions() {
 }
 
 // StartCleanupRoutine starts periodic cleanup of inactive sessions
-func (sm *SessionManager) StartCleanupRoutine(ctx context.Context) {
+func (sm *Manager) StartCleanupRoutine(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -298,13 +295,13 @@ func (sm *SessionManager) StartCleanupRoutine(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			sm.CleanupInactiveSessions()
+			sm.CleanupInactiveSessions(ctx)
 		}
 	}
 }
 
 // Shutdown closes all sessions
-func (sm *SessionManager) Shutdown() {
+func (sm *Manager) Shutdown() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 

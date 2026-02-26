@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"naboo-audio/gemini"
+	"github.com/room4-2/OpenConverse/gemini"
 )
 
 func main() {
@@ -15,7 +15,7 @@ func main() {
 		log.Fatal("GEMINI_API_KEY not set")
 	}
 
-	proxy, err := gemini.NewGeminiProxy(apiKey)
+	proxy, err := gemini.NewProxy(context.Background(), apiKey)
 	if err != nil {
 		log.Fatalf("Failed to create proxy: %v", err)
 	}
@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// Setup session (no tools for this test)
-	err = proxy.Setup("You are a helpful assistant. Keep responses brief.", nil)
+	err = proxy.Setup(context.Background(), "You are a helpful assistant. Keep responses brief.", nil)
 	if err != nil {
 		log.Fatalf("Failed to setup: %v", err)
 	}

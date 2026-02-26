@@ -7,11 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"naboo-audio/functions"
-	"naboo-audio/gemini"
-	"naboo-audio/messages"
 	"sync"
 	"time"
+
+	"github.com/room4-2/OpenConverse/functions"
+	"github.com/room4-2/OpenConverse/gemini"
+	"github.com/room4-2/OpenConverse/messages"
 
 	"github.com/gorilla/websocket"
 	"google.golang.org/genai"
@@ -30,7 +31,7 @@ type ClientSession struct {
 	IsTwilio     bool   // Whether this is a Twilio voice call session
 	StreamSid    string // Twilio stream SID (set on "start" event)
 	ClientConn   *websocket.Conn
-	GeminiProxy  *gemini.GeminiProxy
+	GeminiProxy  *gemini.Proxy
 	AudioBuffer  *AudioBuffer // Buffer for incoming audio chunks
 	CreatedAt    time.Time
 	LastActivity time.Time
@@ -46,13 +47,13 @@ type ClientSession struct {
 }
 
 // NewClientSession creates a session with Gemini connection
-func NewClientSession(id string, clientConn *websocket.Conn, geminiKey string, systemPrompt string, maxBufferSize int, tools []*genai.Tool) (*ClientSession, error) {
-	proxy, err := gemini.NewGeminiProxy(geminiKey)
+func NewClientSession(ctx context.Context, id string, clientConn *websocket.Conn, geminiKey string, systemPrompt string, maxBufferSize int, tools []*genai.Tool) (*ClientSession, error) {
+	proxy, err := gemini.NewProxy(ctx, geminiKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Gemini proxy: %w", err)
 	}
 
-	if err := proxy.Setup(systemPrompt, tools); err != nil {
+	if err := proxy.Setup(ctx, systemPrompt, tools); err != nil {
 		proxy.Close()
 		return nil, fmt.Errorf("failed to setup Gemini session: %w", err)
 	}
@@ -62,7 +63,7 @@ func NewClientSession(id string, clientConn *websocket.Conn, geminiKey string, s
 	// Configure WebSocket for better performance
 	clientConn.SetReadLimit(512 * 1024) // 512KB max message
 	clientConn.EnableWriteCompression(true)
-	clientConn.SetCompressionLevel(6)
+	_ = clientConn.SetCompressionLevel(6)
 
 	session := &ClientSession{
 		ID:           id,
@@ -81,8 +82,8 @@ func NewClientSession(id string, clientConn *websocket.Conn, geminiKey string, s
 }
 
 // NewTwilioClientSession creates a session for Twilio voice calls
-func NewTwilioClientSession(id string, clientConn *websocket.Conn, geminiKey string, systemPrompt string, maxBufferSize int, tools []*genai.Tool) (*ClientSession, error) {
-	session, err := NewClientSession(id, clientConn, geminiKey, systemPrompt, maxBufferSize, tools)
+func NewTwilioClientSession(ctx context.Context, id string, clientConn *websocket.Conn, geminiKey string, systemPrompt string, maxBufferSize int, tools []*genai.Tool) (*ClientSession, error) {
+	session, err := NewClientSession(ctx, id, clientConn, geminiKey, systemPrompt, maxBufferSize, tools)
 	if err != nil {
 		return nil, err
 	}
@@ -202,8 +203,8 @@ func (cs *ClientSession) setupGeminiErrorCallback() {
 func (cs *ClientSession) writePump() {
 	defer func() {
 		// Send close message before exiting
-		cs.ClientConn.SetWriteDeadline(time.Now().Add(writeTimeout))
-		cs.ClientConn.WriteMessage(
+		_ = cs.ClientConn.SetWriteDeadline(time.Now().Add(writeTimeout))
+		_ = cs.ClientConn.WriteMessage(
 			websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
 		)
@@ -219,7 +220,7 @@ func (cs *ClientSession) writePump() {
 				return
 			}
 
-			cs.ClientConn.SetWriteDeadline(time.Now().Add(writeTimeout))
+			_ = cs.ClientConn.SetWriteDeadline(time.Now().Add(writeTimeout))
 
 			if err := cs.ClientConn.WriteJSON(msg); err != nil {
 				return
@@ -484,7 +485,7 @@ func (cs *ClientSession) processClientMessage(msg *messages.ClientMessage) {
 		if err != nil {
 			return
 		}
-		cs.AudioBuffer.Append(audioBytes)
+		_ = cs.AudioBuffer.Append(audioBytes)
 
 	case "control":
 		var payload messages.ControlPayload

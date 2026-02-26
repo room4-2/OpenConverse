@@ -1,12 +1,10 @@
-# Environment variables — never commit secrets
 .env
+.env.example
 
-# macOS
 .DS_Store
 .AppleDouble
 .LSOverrideIcon
 
-# Go build artifacts
 *.exe
 *.exe~
 *.dll
@@ -16,10 +14,8 @@ openconverse
 *.test
 *.out
 
-# Go module cache
 vendor/
 
-# IDE
 .vscode/
 .kiro/
 *.iml
