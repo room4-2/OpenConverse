@@ -73,7 +73,7 @@ func (sm *Manager) CreateSession(ctx context.Context, clientConn *websocket.Conn
 
 	sessionID := uuid.New().String()
 
-	session, err := NewClientSession(ctx, sessionID, clientConn, sm.geminiKey, defaultSystemPrompt, sm.config.MaxBufferSize, buildTools())
+	session, err := NewClientSession(ctx, sessionID, clientConn, sm.geminiKey, DefaultSystemPrompt, sm.config.MaxBufferSize, buildTools())
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (sm *Manager) CreateTwilioSession(ctx context.Context, clientConn *websocke
 
 	sessionID := uuid.New().String()
 
-	session, err := NewTwilioClientSession(ctx, sessionID, clientConn, sm.geminiKey, defaultSystemPrompt, sm.config.MaxBufferSize, buildTools())
+	session, err := NewTwilioClientSession(ctx, sessionID, clientConn, sm.geminiKey, DefaultSystemPrompt, sm.config.MaxBufferSize, buildTools())
 	if err != nil {
 		return nil, err
 	}
