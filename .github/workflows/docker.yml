@@ -3,6 +3,10 @@ name: Docker Build & Push
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.github/workflows/code-quality.yml'
   release:
     types: [published]
 
