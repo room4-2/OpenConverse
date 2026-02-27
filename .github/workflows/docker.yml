@@ -3,6 +3,12 @@ name: Docker Build & Push
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.github/**'
+      - '.vscode/**'
+      - 'LICENSE'
   release:
     types: [published]
 
