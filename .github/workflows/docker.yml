@@ -6,7 +6,9 @@ on:
     paths-ignore:
       - 'docs/**'
       - '**.md'
-      - '.github/workflows/code-quality.yml'
+      - '.github/**'
+      - '.vscode/**'
+      - 'LICENSE'
   release:
     types: [published]
 
