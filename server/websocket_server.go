@@ -91,8 +91,13 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("✅ New session created: %s", clientSession.ID)
 
-	// Start session (handles messages in goroutines)
-	clientSession.Start()
+	// Start session based on provider (handles messages in goroutines)
+	switch clientSession.Provider {
+	case session.ProviderOpenAI:
+		clientSession.StartOpenAI()
+	default:
+		clientSession.Start()
+	}
 
 	// Wait for session to close
 	<-clientSession.CloseChan

@@ -3,11 +3,12 @@ package session
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
 	"github.com/room4-2/OpenConverse/config"
-	"github.com/room4-2/OpenConverse/functions"
+	gemini_function "github.com/room4-2/OpenConverse/functions/gemini"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -17,11 +18,10 @@ import (
 
 // Manager manages all client sessions
 type Manager struct {
-	sessions  map[string]*ClientSession
-	mu        sync.RWMutex
-	redis     *redis.Client
-	config    *config.Config
-	geminiKey string
+	sessions map[string]*ClientSession
+	mu       sync.RWMutex
+	redis    *redis.Client
+	config   *config.Config
 }
 
 // NewManager creates a session manager with Redis connection
@@ -45,24 +45,23 @@ func NewManager(cfg *config.Config) (*Manager, error) {
 	}
 
 	return &Manager{
-		sessions:  make(map[string]*ClientSession),
-		redis:     redisClient,
-		config:    cfg,
-		geminiKey: cfg.GeminiAPIKey,
+		sessions: make(map[string]*ClientSession),
+		redis:    redisClient,
+		config:   cfg,
 	}, nil
 }
 
-func buildTools() []*genai.Tool {
+func buildGeminiTools() []*genai.Tool {
 	return []*genai.Tool{
 		{
 			FunctionDeclarations: []*genai.FunctionDeclaration{
-				functions.GetCompanyInformationsDocsFunctionDeclaration(),
+				gemini_function.GetCompanyInformationsDocsFunctionDeclaration(),
 			},
 		},
 	}
 }
 
-// CreateSession creates a new client session
+// CreateSession creates a new client session using the configured provider
 func (sm *Manager) CreateSession(ctx context.Context, clientConn *websocket.Conn) (*ClientSession, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -72,17 +71,27 @@ func (sm *Manager) CreateSession(ctx context.Context, clientConn *websocket.Conn
 	}
 
 	sessionID := uuid.New().String()
+	cfg := sm.config
 
-	session, err := NewClientSession(ctx, sessionID, clientConn, sm.geminiKey, DefaultSystemPrompt, sm.config.MaxBufferSize, buildTools())
+	var session *ClientSession
+	var err error
+
+	switch cfg.Provider {
+	case "openai":
+		session, err = NewOpenAIClientSession(ctx, sessionID, clientConn, cfg.OpenaiApiKey, cfg.Model, cfg.Voice, DefaultSystemPrompt, cfg.MaxBufferSize)
+	default: // "gemini"
+		session, err = NewClientSession(ctx, sessionID, clientConn, cfg.GeminiAPIKey, cfg.Model, cfg.Voice, DefaultSystemPrompt, cfg.MaxBufferSize, buildGeminiTools())
+	}
 	if err != nil {
 		return nil, err
 	}
 
+	log.Printf("✅ Created %s session %s", cfg.Provider, sessionID[:8])
 	sm.storeSession(ctx, sessionID, session)
 	return session, nil
 }
 
-// CreateTwilioSession creates a new Twilio voice call session
+// CreateTwilioSession creates a new Twilio voice call session using the configured provider
 func (sm *Manager) CreateTwilioSession(ctx context.Context, clientConn *websocket.Conn) (*ClientSession, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -92,12 +101,22 @@ func (sm *Manager) CreateTwilioSession(ctx context.Context, clientConn *websocke
 	}
 
 	sessionID := uuid.New().String()
+	cfg := sm.config
 
-	session, err := NewTwilioClientSession(ctx, sessionID, clientConn, sm.geminiKey, DefaultSystemPrompt, sm.config.MaxBufferSize, buildTools())
+	var session *ClientSession
+	var err error
+
+	switch cfg.Provider {
+	case "openai":
+		session, err = NewOpenAITwilioClientSession(ctx, sessionID, clientConn, cfg.OpenaiApiKey, cfg.Model, cfg.Voice, DefaultSystemPrompt, cfg.MaxBufferSize)
+	default: // "gemini"
+		session, err = NewTwilioClientSession(ctx, sessionID, clientConn, cfg.GeminiAPIKey, cfg.Model, cfg.Voice, DefaultSystemPrompt, cfg.MaxBufferSize, buildGeminiTools())
+	}
 	if err != nil {
 		return nil, err
 	}
 
+	log.Printf("✅ Created %s Twilio session %s", cfg.Provider, sessionID[:8])
 	sm.storeSession(ctx, sessionID, session)
 	return session, nil
 }

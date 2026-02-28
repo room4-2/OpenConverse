@@ -15,11 +15,15 @@ type Config struct {
 	Port            int
 	TwilioPort      int    // Port for Twilio server (used when ServerType is "both")
 	ServerType      string // "websocket", "twilio", or "both"
+	Provider        string // "gemini" or "openai"
+	Model           string // Model name (e.g. "gemini-2.5-flash-native-audio-preview-12-2025", "gpt-4o-realtime-preview")
+	Voice           string // Voice name (e.g. "Zephyr" for Gemini, "alloy" for OpenAI)
 	RedisURL        string
 	RedisPassword   string
 	MaxSessions     int
 	SessionTimeout  time.Duration
 	GeminiAPIKey    string
+	OpenaiApiKey    string
 	AllowedOrigins  []string
 	KeepAlivePeriod time.Duration
 	MaxBufferSize   int // Maximum audio buffer size in bytes per session
@@ -34,6 +38,9 @@ func LoadConfig() (*Config, error) {
 		Port:            8080,
 		TwilioPort:      8081,
 		ServerType:      "websocket",
+		Provider:        "gemini",
+		Model:           "gemini-2.5-flash-native-audio-preview-12-2025",
+		Voice:           "Zephyr",
 		RedisURL:        "localhost:6379",
 		RedisPassword:   "",
 		MaxSessions:     100,
@@ -43,10 +50,41 @@ func LoadConfig() (*Config, error) {
 		MaxBufferSize:   5 * 1024 * 1024, // 5MB default
 	}
 
-	// Required: GEMINI_API_KEY
+	// Optional: PROVIDER ("gemini" or "openai")
+	if provider := os.Getenv("PROVIDER"); provider != "" {
+		switch provider {
+		case "gemini", "openai":
+			config.Provider = provider
+		default:
+			return nil, fmt.Errorf("invalid PROVIDER: must be 'gemini' or 'openai'")
+		}
+	}
+
+	// Optional: MODEL (overrides default model for the chosen provider)
+	if model := os.Getenv("MODEL"); model != "" {
+		config.Model = model
+	} else if config.Provider == "openai" && config.Model == "gemini-2.5-flash-native-audio-preview-12-2025" {
+		// Switch to OpenAI default model if provider changed but model wasn't set
+		config.Model = "gpt-4o-realtime-preview"
+	}
+
+	// Optional: VOICE (overrides default voice for the chosen provider)
+	if voice := os.Getenv("VOICE"); voice != "" {
+		config.Voice = voice
+	} else if config.Provider == "openai" && config.Voice == "Zephyr" {
+		// Switch to OpenAI default voice if provider changed but voice wasn't set
+		config.Voice = "alloy"
+	}
+
+	// API Keys: require the key matching the selected provider
 	config.GeminiAPIKey = os.Getenv("GEMINI_API_KEY")
-	if config.GeminiAPIKey == "" {
-		return nil, fmt.Errorf("GEMINI_API_KEY environment variable is required")
+	config.OpenaiApiKey = os.Getenv("OPENAI_API_KEY")
+
+	if config.Provider == "gemini" && config.GeminiAPIKey == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY environment variable is required when PROVIDER is 'gemini'")
+	}
+	if config.Provider == "openai" && config.OpenaiApiKey == "" {
+		return nil, fmt.Errorf("OPENAI_API_KEY environment variable is required when PROVIDER is 'openai'")
 	}
 
 	// Optional: PORT

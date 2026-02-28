@@ -90,8 +90,13 @@ func (s *WebsocketTwilio) handleWebsocketTwilio(w http.ResponseWriter, r *http.R
 
 	log.Printf("📞 New Twilio session created: %s", clientSession.ID)
 
-	// Start Twilio session (uses Twilio-specific message handler)
-	clientSession.StartTwilio()
+	// Start Twilio session based on provider
+	switch clientSession.Provider {
+	case session.ProviderOpenAI:
+		clientSession.StartOpenAITwilio()
+	default:
+		clientSession.StartTwilio()
+	}
 
 	// Wait for session to close
 	<-clientSession.CloseChan

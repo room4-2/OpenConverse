@@ -1,4 +1,4 @@
-package functions
+package gemini
 
 import "google.golang.org/genai"
 
