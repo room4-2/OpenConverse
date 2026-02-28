@@ -10,10 +10,6 @@ import (
 	"google.golang.org/genai"
 )
 
-const (
-	modelName = "models/gemini-2.5-flash-native-audio-preview-12-2025"
-	//modelName = "models/gemini-3-flash-preview"
-)
 
 // Proxy manages the connection to Gemini Live API using the official SDK
 type Proxy struct {
@@ -48,14 +44,16 @@ func NewProxy(ctx context.Context, apiKey string) (*Proxy, error) {
 	}, nil
 }
 
-// Setup establishes the Live session
-func (gp *Proxy) Setup(ctx context.Context, systemPrompt string, tools []*genai.Tool) error {
+// Setup establishes the Live session with the given model and voice.
+func (gp *Proxy) Setup(ctx context.Context, systemPrompt string, model string, voice string, tools []*genai.Tool) error {
 	gp.mu.Lock()
 	defer gp.mu.Unlock()
 
 	if gp.closed {
 		return fmt.Errorf("proxy is closed")
 	}
+
+	modelPath := "models/" + model
 
 	// Configure the Live Session
 	config := &genai.LiveConnectConfig{
@@ -66,24 +64,23 @@ func (gp *Proxy) Setup(ctx context.Context, systemPrompt string, tools []*genai.
 			},
 		},
 		Tools: tools,
-		// Configure voice for TTS
 		SpeechConfig: &genai.SpeechConfig{
 			VoiceConfig: &genai.VoiceConfig{
 				PrebuiltVoiceConfig: &genai.PrebuiltVoiceConfig{
-					VoiceName: "Zephyr", // Available voices: Puck, Charon, Kore, Fenrir, Aoede, Leda, Orus, Zephyr
+					VoiceName: voice,
 				},
 			},
 		},
 	}
 
 	// Connect to the Live API
-	session, err := gp.client.Live.Connect(ctx, modelName, config)
+	session, err := gp.client.Live.Connect(ctx, modelPath, config)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Live API: %w", err)
 	}
 
 	gp.session = session
-	log.Printf("✅ Connected to Gemini Live via SDK (%s)", modelName)
+	log.Printf("✅ Connected to Gemini Live via SDK (%s, voice: %s)", modelPath, voice)
 	return nil
 }
 
