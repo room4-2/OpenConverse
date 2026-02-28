@@ -23,7 +23,7 @@ type Config struct {
 	MaxSessions     int
 	SessionTimeout  time.Duration
 	GeminiAPIKey    string
-	OpenaiApiKey    string
+	OpenaiAPIKey    string
 	AllowedOrigins  []string
 	KeepAlivePeriod time.Duration
 	MaxBufferSize   int // Maximum audio buffer size in bytes per session
@@ -78,12 +78,12 @@ func LoadConfig() (*Config, error) {
 
 	// API Keys: require the key matching the selected provider
 	config.GeminiAPIKey = os.Getenv("GEMINI_API_KEY")
-	config.OpenaiApiKey = os.Getenv("OPENAI_API_KEY")
+	config.OpenaiAPIKey = os.Getenv("OPENAI_API_KEY")
 
 	if config.Provider == "gemini" && config.GeminiAPIKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY environment variable is required when PROVIDER is 'gemini'")
 	}
-	if config.Provider == "openai" && config.OpenaiApiKey == "" {
+	if config.Provider == "openai" && config.OpenaiAPIKey == "" {
 		return nil, fmt.Errorf("OPENAI_API_KEY environment variable is required when PROVIDER is 'openai'")
 	}
 

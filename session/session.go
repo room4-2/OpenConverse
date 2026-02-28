@@ -25,7 +25,9 @@ import (
 type Provider string
 
 const (
+	// ProviderGemini indicates the session uses Google's Gemini AI.
 	ProviderGemini Provider = "gemini"
+	// ProviderOpenAI indicates the session uses OpenAI's Realtime API.
 	ProviderOpenAI Provider = "openai"
 )
 
@@ -84,7 +86,7 @@ func NewClientSession(ctx context.Context, id string, clientConn *websocket.Conn
 	}
 
 	if err := proxy.Setup(ctx, systemPrompt, model, voice, tools); err != nil {
-		proxy.Close()
+		_ = proxy.Close()
 		return nil, fmt.Errorf("failed to setup Gemini session: %w", err)
 	}
 
@@ -120,7 +122,7 @@ func NewOpenAIClientSession(ctx context.Context, id string, clientConn *websocke
 	}
 
 	if err := proxy.Setup(ctx, systemPrompt, voice, openai.AudioFormatPCM); err != nil {
-		proxy.Close()
+		_ = proxy.Close()
 		return nil, fmt.Errorf("failed to setup OpenAI session: %w", err)
 	}
 
@@ -142,7 +144,7 @@ func NewOpenAITwilioClientSession(ctx context.Context, id string, clientConn *we
 	}
 
 	if err := proxy.Setup(ctx, systemPrompt, voice, openai.AudioFormatMuLaw); err != nil {
-		proxy.Close()
+		_ = proxy.Close()
 		return nil, fmt.Errorf("failed to setup OpenAI Twilio session: %w", err)
 	}
 
@@ -275,7 +277,7 @@ func (cs *ClientSession) handleOpenAIToolCalls(functionCalls []*responses.ToolUn
 // handleOpenAITwilioMessages processes Twilio WebSocket messages for OpenAI sessions.
 // Since OpenAI is configured with mu-law format, Twilio mu-law audio is forwarded directly.
 func (cs *ClientSession) handleOpenAITwilioMessages() {
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 	for {
 		select {
 		case <-cs.CloseChan:
@@ -430,7 +432,7 @@ func (cs *ClientSession) setupGeminiErrorCallback() {
 		if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) ||
 			websocket.IsUnexpectedCloseError(err) {
 			log.Printf("🔌 [%s] Closing session due to Gemini connection error", cs.ID[:8])
-			cs.Close()
+			_ = cs.Close()
 		}
 	}
 }
@@ -529,15 +531,15 @@ func (cs *ClientSession) Close() error {
 
 	// Close AI proxy connection
 	if cs.GeminiProxy != nil {
-		cs.GeminiProxy.Close()
+		_ = cs.GeminiProxy.Close()
 	}
 	if cs.OpenAIProxy != nil {
-		cs.OpenAIProxy.Close()
+		_ = cs.OpenAIProxy.Close()
 	}
 
 	// Close client connection - don't write close message as writePump is stopped
 	if cs.ClientConn != nil {
-		cs.ClientConn.Close()
+		_ = cs.ClientConn.Close()
 	}
 
 	return nil
@@ -547,7 +549,7 @@ func (cs *ClientSession) Close() error {
 // Twilio sends: connected, start, media, stop events.
 // Audio is streamed directly to Gemini (no buffering) — Gemini handles VAD.
 func (cs *ClientSession) handleClientMessagesFromTwilio() {
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 	for {
 		select {
 		case <-cs.CloseChan:
@@ -655,7 +657,7 @@ func muLawToPCMUpsample(muLawData []byte) []byte {
 }
 
 func (cs *ClientSession) handleClientMessages() {
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 
 	for {
 		select {
@@ -819,6 +821,7 @@ func (cs *ClientSession) handleToolCalls(functionCalls []*genai.FunctionCall) {
 	}
 }
 
+// MuLawByteToPCMBytes converts a single mu-law byte to its 16-bit PCM equivalent in little-endian bytes.
 func (cs *ClientSession) MuLawByteToPCMBytes(b byte) []byte {
 	pcmVal := muLawToPcmTable[b]
 	res := make([]byte, 2)
@@ -863,6 +866,7 @@ func decodeMuLawByte(uVal byte) int16 {
 	return sample
 }
 
+// PcmToMuLawByte converts a 16-bit PCM sample to a mu-law encoded byte.
 func PcmToMuLawByte(pcm int16) byte {
 	const (
 		bias = 0x84 // 132

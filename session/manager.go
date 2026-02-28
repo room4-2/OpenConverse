@@ -78,7 +78,7 @@ func (sm *Manager) CreateSession(ctx context.Context, clientConn *websocket.Conn
 
 	switch cfg.Provider {
 	case "openai":
-		session, err = NewOpenAIClientSession(ctx, sessionID, clientConn, cfg.OpenaiApiKey, cfg.Model, cfg.Voice, DefaultSystemPrompt, cfg.MaxBufferSize)
+		session, err = NewOpenAIClientSession(ctx, sessionID, clientConn, cfg.OpenaiAPIKey, cfg.Model, cfg.Voice, DefaultSystemPrompt, cfg.MaxBufferSize)
 	default: // "gemini"
 		session, err = NewClientSession(ctx, sessionID, clientConn, cfg.GeminiAPIKey, cfg.Model, cfg.Voice, DefaultSystemPrompt, cfg.MaxBufferSize, buildGeminiTools())
 	}
@@ -108,7 +108,7 @@ func (sm *Manager) CreateTwilioSession(ctx context.Context, clientConn *websocke
 
 	switch cfg.Provider {
 	case "openai":
-		session, err = NewOpenAITwilioClientSession(ctx, sessionID, clientConn, cfg.OpenaiApiKey, cfg.Model, cfg.Voice, DefaultSystemPrompt, cfg.MaxBufferSize)
+		session, err = NewOpenAITwilioClientSession(ctx, sessionID, clientConn, cfg.OpenaiAPIKey, cfg.Model, cfg.Voice, DefaultSystemPrompt, cfg.MaxBufferSize)
 	default: // "gemini"
 		session, err = NewTwilioClientSession(ctx, sessionID, clientConn, cfg.GeminiAPIKey, cfg.Model, cfg.Voice, DefaultSystemPrompt, cfg.MaxBufferSize, buildGeminiTools())
 	}
@@ -156,7 +156,7 @@ func (sm *Manager) RemoveSession(ctx context.Context, sessionID string) error {
 		return nil
 	}
 
-	session.Close()
+	_ = session.Close()
 	delete(sm.sessions, sessionID)
 
 	if sm.redis != nil {
@@ -182,7 +182,7 @@ func (sm *Manager) CleanupInactiveSessions(ctx context.Context) {
 	now := time.Now()
 	for id, session := range sm.sessions {
 		if now.Sub(session.LastActivity) > sm.config.SessionTimeout {
-			session.Close()
+			_ = session.Close()
 			delete(sm.sessions, id)
 
 			if sm.redis != nil {
@@ -214,11 +214,11 @@ func (sm *Manager) Shutdown() {
 	defer sm.mu.Unlock()
 
 	for id, session := range sm.sessions {
-		session.Close()
+		_ = session.Close()
 		delete(sm.sessions, id)
 	}
 
 	if sm.redis != nil {
-		sm.redis.Close()
+		_ = sm.redis.Close()
 	}
 }

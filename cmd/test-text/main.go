@@ -19,7 +19,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create proxy: %v", err)
 	}
-	defer proxy.Close()
+	defer func() { _ = proxy.Close() }()
 
 	// Set up callbacks
 	proxy.OnAudio = func(data []byte) {

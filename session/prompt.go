@@ -1,6 +1,6 @@
 package session
 
-
+// DefaultSystemPrompt is the default system instructions for the AI assistant.
 const DefaultSystemPrompt = `
 ## Identity & Role
 

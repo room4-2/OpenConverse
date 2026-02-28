@@ -20,15 +20,16 @@ const (
 	baseURL = "wss://api.openai.com/v1/realtime"
 )
 
+// Proxy handles communication between the server and OpenAI Realtime API.
 type Proxy struct {
 	openaiClient *websocket.Conn
-	sessionId    string
+	sessionID    string
 
-	OnAudio    func(data []byte)                                  // Decoded audio bytes
-	OnAudioRaw func(base64Data string)                            // Raw base64 (avoids re-encoding)
+	OnAudio    func(data []byte)       // Decoded audio bytes
+	OnAudioRaw func(base64Data string) // Raw base64 (avoids re-encoding)
 	OnText     func(text string)
 	OnComplete func()
-	OnToolCall func(functionCalls []*responses.ToolUnionParam)     // Tool/function calls from model
+	OnToolCall func(functionCalls []*responses.ToolUnionParam) // Tool/function calls from model
 	OnError    func(err error)
 
 	mu     sync.RWMutex
@@ -46,6 +47,7 @@ type pendingFuncCall struct {
 	Arguments string
 }
 
+// NewProxy creates a new Proxy instance and establishes a connection to OpenAI.
 func NewProxy(ctx context.Context, apiKey string, model string) (*Proxy, error) {
 	headers := http.Header{}
 	params := url.Values{}
@@ -54,7 +56,10 @@ func NewProxy(ctx context.Context, apiKey string, model string) (*Proxy, error) 
 	u, _ := url.Parse(baseURL)
 	params.Add("model", model)
 	u.RawQuery = params.Encode()
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), headers)
+	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), headers)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create websocket connection: %w", err)
 	}
@@ -74,6 +79,7 @@ const (
 	AudioFormatPCM AudioFormatType = "audio/pcm"
 )
 
+// Setup configures the OpenAI realtime session with instructions, voice, and audio format.
 func (op *Proxy) Setup(ctx context.Context, systemPrompt string, voice string, audioFormat AudioFormatType) error {
 	op.mu.Lock()
 	defer op.mu.Unlock()
@@ -87,7 +93,7 @@ func (op *Proxy) Setup(ctx context.Context, systemPrompt string, voice string, a
 	for _, toolOpenai := range toolsOpenai {
 		toolByte, _ := toolOpenai.MarshalJSON()
 		var tool map[string]any
-		sonic.Unmarshal(toolByte, &tool)
+		_ = sonic.Unmarshal(toolByte, &tool)
 		tools = append(tools, tool)
 	}
 
@@ -115,7 +121,7 @@ func (op *Proxy) Setup(ctx context.Context, systemPrompt string, voice string, a
 	payload := SessionUpdate{
 		Type:    "session.update",
 		Session: SessionInformation,
-		EventID: op.sessionId,
+		EventID: op.sessionID,
 	}
 	return op.openaiClient.WriteJSON(payload)
 }
@@ -175,7 +181,7 @@ func (op *Proxy) handleResponse(msg []byte) {
 
 	case "error":
 		var errEvent ServerEventError
-		sonic.Unmarshal(msg, &errEvent)
+		_ = sonic.Unmarshal(msg, &errEvent)
 		log.Printf("❌ OpenAI error: [%s] %s", errEvent.Error.Code, errEvent.Error.Message)
 		if op.OnError != nil {
 			op.OnError(fmt.Errorf("openai error [%s]: %s", errEvent.Error.Code, errEvent.Error.Message))
@@ -302,7 +308,7 @@ func (op *Proxy) SendAudio(base64Audio string) error {
 
 	payload := InputAudioBufferAppend{
 		Type:    "input_audio_buffer.append",
-		EventID: op.sessionId,
+		EventID: op.sessionID,
 		Audio:   base64Audio,
 	}
 	return op.openaiClient.WriteJSON(payload)
@@ -327,7 +333,7 @@ func (op *Proxy) SendText(text string) error {
 	// Create conversation item with user text
 	payload := ConversationItemCreate{
 		Type:    "conversation.item.create",
-		EventID: op.sessionId,
+		EventID: op.sessionID,
 		Item: ConversationItemParam{
 			Type: "message",
 			Role: "user",
@@ -341,7 +347,7 @@ func (op *Proxy) SendText(text string) error {
 	}
 
 	// Trigger a response
-	resp := ResponseCreate{Type: "response.create", EventID: op.sessionId}
+	resp := ResponseCreate{Type: "response.create", EventID: op.sessionID}
 	if err := op.openaiClient.WriteJSON(resp); err != nil {
 		return fmt.Errorf("failed to trigger response: %w", err)
 	}
@@ -362,7 +368,7 @@ func (op *Proxy) SendToolResponse(callID string, output string) error {
 
 	payload := ConversationItemCreate{
 		Type:    "conversation.item.create",
-		EventID: op.sessionId,
+		EventID: op.sessionID,
 		Item: ConversationItemParam{
 			Type:   "function_call_output",
 			CallID: callID,
@@ -374,7 +380,7 @@ func (op *Proxy) SendToolResponse(callID string, output string) error {
 	}
 
 	// Trigger a new response after providing the function output
-	resp := ResponseCreate{Type: "response.create", EventID: op.sessionId}
+	resp := ResponseCreate{Type: "response.create", EventID: op.sessionID}
 	if err := op.openaiClient.WriteJSON(resp); err != nil {
 		return fmt.Errorf("failed to trigger response after tool: %w", err)
 	}
