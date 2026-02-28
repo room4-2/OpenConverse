@@ -2,7 +2,7 @@ package gemini
 
 import "google.golang.org/genai"
 
-// GetNaboopayInformationsDocsFunctionDeclaration returns the function declaration for Gemini
+// GetCompanyInformationsDocsFunctionDeclaration returns the function declaration for Gemini.
 func GetCompanyInformationsDocsFunctionDeclaration() *genai.FunctionDeclaration {
 	return &genai.FunctionDeclaration{
 		Name:        "GetCompanyInformationsDocs",
@@ -15,6 +15,7 @@ for e-commerce websites and online services. We offer competitive rates,
 secure transactions, and seamless integration with popular platforms.
 `
 
+// GetCompanyInformationsDocs returns the company information documentation.
 func GetCompanyInformationsDocs() string {
 	return docs
 }

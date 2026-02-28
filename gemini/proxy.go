@@ -10,7 +10,6 @@ import (
 	"google.golang.org/genai"
 )
 
-
 // Proxy manages the connection to Gemini Live API using the official SDK
 type Proxy struct {
 	client  *genai.Client

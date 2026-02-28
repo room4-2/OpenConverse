@@ -20,3 +20,4 @@ vendor/
 .kiro/
 *.iml
 .idea/
+openai-docs-realtime.md

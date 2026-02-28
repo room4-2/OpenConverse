@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Server handles standard WebSocket connections from frontend clients.
 type Server struct {
 	httpServer     *http.Server
 	upgrader       websocket.Upgrader
@@ -21,6 +22,7 @@ type Server struct {
 	config         *config.Config
 }
 
+// NewServerWebsocket creates a new Server instance for handling WebSocket connections.
 func NewServerWebsocket(cfg *config.Config, sessionManager *session.Manager) *Server {
 	s := &Server{
 		sessionManager: sessionManager,
@@ -85,7 +87,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		// Send error and close
 		errMsg := messages.NewErrorMessage("", messages.ErrCodeSessionFailed, err.Error())
 		_ = conn.WriteJSON(errMsg)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
@@ -110,5 +112,5 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"status":"ok","sessions":%d}`, s.sessionManager.GetActiveSessionCount())
+	_, _ = fmt.Fprintf(w, `{"status":"ok","sessions":%d}`, s.sessionManager.GetActiveSessionCount())
 }

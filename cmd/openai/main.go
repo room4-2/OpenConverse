@@ -7,7 +7,7 @@ import (
 	"github.com/openai/openai-go/v3/responses"
 )
 
-func main(){
+func main() {
 	tool := []responses.ToolUnionParam{{
 		OfFunction: &responses.FunctionToolParam{
 			Name:        "get_weather",
@@ -24,8 +24,8 @@ func main(){
 		},
 	}}
 	mytool := tool[0]
-	
-	bytesMarshal,err := mytool.MarshalJSON()
-		fmt.Println(string(bytesMarshal),err)
+
+	bytesMarshal, err := mytool.MarshalJSON()
+	fmt.Println(string(bytesMarshal), err)
 
 }

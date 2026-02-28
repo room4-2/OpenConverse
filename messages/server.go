@@ -18,18 +18,19 @@ const (
 	TypeError  = "error"
 )
 
-// ServerMessage represents a message sent to frontend client
-
+// Media represents the audio payload for a Twilio message.
 type Media struct {
 	Payload string `json:"payload"` //  Base64-encoded mi-law audio data
 }
 
+// ServerMessage represents a message sent to frontend client.
 type ServerMessage struct {
 	Type      string      `json:"type"` // "audio", "text", "status", "error"
 	SessionID string      `json:"sessionId,omitempty"`
 	Payload   interface{} `json:"payload"`
 }
 
+// TwilioMessageBack represents the response message to be sent back to Twilio.
 type TwilioMessageBack struct {
 	Event     string `json:"event"`
 	StreamSid string `json:"streamSid"`
@@ -59,6 +60,7 @@ type ErrorPayload struct {
 	Message string `json:"message"`
 }
 
+// NewTwilioMessageBack creates a new TwilioMessageBack with the provided stream SID and audio data.
 func NewTwilioMessageBack(streamSid string, data string) *TwilioMessageBack {
 	return &TwilioMessageBack{
 		Event:     "media",
