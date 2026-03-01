@@ -11,7 +11,6 @@ import (
 
 	"github.com/bytedance/sonic"
 
-	gemini_function "github.com/room4-2/OpenConverse/functions/gemini"
 	"github.com/room4-2/OpenConverse/gemini"
 	"github.com/room4-2/OpenConverse/messages"
 	"github.com/room4-2/OpenConverse/openai"
@@ -794,11 +793,9 @@ func (cs *ClientSession) handleToolCalls(functionCalls []*genai.FunctionCall) {
 		var response map[string]any
 
 		switch fc.Name {
-		// Documentation function
-		case "GetCompanyInformationsDocs":
-			docs := gemini_function.GetCompanyInformationsDocs()
-			response = map[string]any{"output": docs}
-			log.Printf("🔧 [%s] Returning company docs (%d chars)", cs.ID[:8], len(docs))
+		case "hangUp":
+			response = map[string]any{"status": "call_ended"}
+			log.Printf("📞 [%s] HangUp requested via Gemini", cs.ID[:8])
 
 		default:
 			response = map[string]any{"error": fmt.Sprintf("Unknown function: %s", fc.Name)}

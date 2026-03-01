@@ -55,7 +55,7 @@ func buildGeminiTools() []*genai.Tool {
 	return []*genai.Tool{
 		{
 			FunctionDeclarations: []*genai.FunctionDeclaration{
-				gemini_function.GetCompanyInformationsDocsFunctionDeclaration(),
+				gemini_function.GetHangUpFunctionDeclaration(),
 			},
 		},
 	}
