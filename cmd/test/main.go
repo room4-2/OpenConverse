@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -56,7 +57,7 @@ type AudioPlayer struct {
 }
 
 func NewAudioPlayer() *AudioPlayer {
-	cmd := exec.Command("sox",
+	cmd := exec.CommandContext(context.Background(), "sox",
 		"-t", "raw",
 		"-r", "24000",
 		"-b", "16",
@@ -97,7 +98,7 @@ func (p *AudioPlayer) Close() {
 	}
 	p.closed = true
 	if p.stdin != nil {
-		p.stdin.Close()
+		_ = p.stdin.Close()
 	}
 	if p.cmd != nil && p.cmd.Process != nil {
 		_ = p.cmd.Wait()
@@ -116,7 +117,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	log.Println("✅ Connected!")
 

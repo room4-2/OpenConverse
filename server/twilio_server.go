@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// WebsocketTwilio handles WebSocket connections from Twilio.
 type WebsocketTwilio struct {
 	httpServer     *http.Server
 	upgrader       websocket.Upgrader
@@ -19,6 +20,7 @@ type WebsocketTwilio struct {
 	config         *config.Config
 }
 
+// NewWebsocketTwilio creates a new WebsocketTwilio server instance.
 func NewWebsocketTwilio(cfg *config.Config, sessionManager *session.Manager) *WebsocketTwilio {
 	s := &WebsocketTwilio{
 		sessionManager: sessionManager,
@@ -84,14 +86,19 @@ func (s *WebsocketTwilio) handleWebsocketTwilio(w http.ResponseWriter, r *http.R
 	clientSession, err := s.sessionManager.CreateTwilioSession(r.Context(), conn)
 	if err != nil {
 		log.Printf("Failed to create Twilio session: %v", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
 	log.Printf("📞 New Twilio session created: %s", clientSession.ID)
 
-	// Start Twilio session (uses Twilio-specific message handler)
-	clientSession.StartTwilio()
+	// Start Twilio session based on provider
+	switch clientSession.Provider {
+	case session.ProviderOpenAI:
+		clientSession.StartOpenAITwilio()
+	default:
+		clientSession.StartTwilio()
+	}
 
 	// Wait for session to close
 	<-clientSession.CloseChan
@@ -120,7 +127,7 @@ func (s *WebsocketTwilio) handleVoiceCall(w http.ResponseWriter, r *http.Request
 func (s *WebsocketTwilio) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"status":"ok","server":"twilio","sessions":%d}`, s.sessionManager.GetActiveSessionCount())
+	_, _ = fmt.Fprintf(w, `{"status":"ok","server":"twilio","sessions":%d}`, s.sessionManager.GetActiveSessionCount())
 }
 
 // GetAddr returns the server's listen address (for logging in main)

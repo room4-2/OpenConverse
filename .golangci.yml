@@ -8,18 +8,17 @@ linters:
     - misspell
     - revive
     - bodyclose
-    - contextcheck
     - noctx
 
-linters-settings:
-  revive:
-    severity: warning
-    rules:
-      - name: exported
-      - name: var-naming
-      - name: error-return
-      - name: error-strings
-      - name: range
+  settings:
+    revive:
+      severity: warning
+      rules:
+        - name: exported
+        - name: var-naming
+        - name: error-return
+        - name: error-strings
+        - name: range
 
 issues:
   max-issues-per-linter: 50

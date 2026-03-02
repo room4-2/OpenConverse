@@ -11,12 +11,23 @@ import (
 
 	"github.com/bytedance/sonic"
 
-	"github.com/room4-2/OpenConverse/functions"
 	"github.com/room4-2/OpenConverse/gemini"
 	"github.com/room4-2/OpenConverse/messages"
+	"github.com/room4-2/OpenConverse/openai"
 
 	"github.com/gorilla/websocket"
+	"github.com/openai/openai-go/v3/responses"
 	"google.golang.org/genai"
+)
+
+// Provider identifies which AI backend a session uses.
+type Provider string
+
+const (
+	// ProviderGemini indicates the session uses Google's Gemini AI.
+	ProviderGemini Provider = "gemini"
+	// ProviderOpenAI indicates the session uses OpenAI's Realtime API.
+	ProviderOpenAI Provider = "openai"
 )
 
 var muLawToPcmTable [256]int16
@@ -29,10 +40,12 @@ const (
 // ClientSession represents a single user's connection
 type ClientSession struct {
 	ID           string
-	IsTwilio     bool   // Whether this is a Twilio voice call session
-	StreamSid    string // Twilio stream SID (set on "start" event)
+	Provider     Provider // Which AI backend: "gemini" or "openai"
+	IsTwilio     bool     // Whether this is a Twilio voice call session
+	StreamSid    string   // Twilio stream SID (set on "start" event)
 	ClientConn   *websocket.Conn
 	GeminiProxy  *gemini.Proxy
+	OpenAIProxy  *openai.Proxy
 	AudioBuffer  *AudioBuffer // Buffer for incoming audio chunks
 	CreatedAt    time.Time
 	LastActivity time.Time
@@ -47,29 +60,13 @@ type ClientSession struct {
 	cancel    context.CancelFunc
 }
 
-// NewClientSession creates a session with Gemini connection
-func NewClientSession(ctx context.Context, id string, clientConn *websocket.Conn, geminiKey string, systemPrompt string, maxBufferSize int, tools []*genai.Tool) (*ClientSession, error) {
-	proxy, err := gemini.NewProxy(ctx, geminiKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Gemini proxy: %w", err)
-	}
-
-	if err := proxy.Setup(ctx, systemPrompt, tools); err != nil {
-		proxy.Close()
-		return nil, fmt.Errorf("failed to setup Gemini session: %w", err)
-	}
-
+// newBaseSession creates a base session with common fields initialized.
+func newBaseSession(id string, provider Provider, clientConn *websocket.Conn, maxBufferSize int) *ClientSession {
 	ctx, cancel := context.WithCancel(context.Background())
-
-	// Configure WebSocket for better performance
-	clientConn.SetReadLimit(512 * 1024) // 512KB max message
-	clientConn.EnableWriteCompression(true)
-	_ = clientConn.SetCompressionLevel(6)
-
-	session := &ClientSession{
+	return &ClientSession{
 		ID:           id,
+		Provider:     provider,
 		ClientConn:   clientConn,
-		GeminiProxy:  proxy,
 		AudioBuffer:  NewAudioBuffer(maxBufferSize),
 		CreatedAt:    time.Now(),
 		LastActivity: time.Now(),
@@ -78,13 +75,33 @@ func NewClientSession(ctx context.Context, id string, clientConn *websocket.Conn
 		ctx:          ctx,
 		cancel:       cancel,
 	}
+}
 
+// NewClientSession creates a session with Gemini connection
+func NewClientSession(ctx context.Context, id string, clientConn *websocket.Conn, geminiKey string, model string, voice string, systemPrompt string, maxBufferSize int, tools []*genai.Tool) (*ClientSession, error) {
+	proxy, err := gemini.NewProxy(ctx, geminiKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Gemini proxy: %w", err)
+	}
+
+	if err := proxy.Setup(ctx, systemPrompt, model, voice, tools); err != nil {
+		_ = proxy.Close()
+		return nil, fmt.Errorf("failed to setup Gemini session: %w", err)
+	}
+
+	// Configure WebSocket for better performance
+	clientConn.SetReadLimit(512 * 1024) // 512KB max message
+	clientConn.EnableWriteCompression(true)
+	_ = clientConn.SetCompressionLevel(6)
+
+	session := newBaseSession(id, ProviderGemini, clientConn, maxBufferSize)
+	session.GeminiProxy = proxy
 	return session, nil
 }
 
-// NewTwilioClientSession creates a session for Twilio voice calls
-func NewTwilioClientSession(ctx context.Context, id string, clientConn *websocket.Conn, geminiKey string, systemPrompt string, maxBufferSize int, tools []*genai.Tool) (*ClientSession, error) {
-	session, err := NewClientSession(ctx, id, clientConn, geminiKey, systemPrompt, maxBufferSize, tools)
+// NewTwilioClientSession creates a Gemini session for Twilio voice calls
+func NewTwilioClientSession(ctx context.Context, id string, clientConn *websocket.Conn, geminiKey string, model string, voice string, systemPrompt string, maxBufferSize int, tools []*genai.Tool) (*ClientSession, error) {
+	session, err := NewClientSession(ctx, id, clientConn, geminiKey, model, voice, systemPrompt, maxBufferSize, tools)
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +110,49 @@ func NewTwilioClientSession(ctx context.Context, id string, clientConn *websocke
 	// Twilio doesn't support WebSocket compression
 	clientConn.EnableWriteCompression(false)
 
+	return session, nil
+}
+
+// NewOpenAIClientSession creates a session with OpenAI Realtime connection (PCM 24kHz audio)
+func NewOpenAIClientSession(ctx context.Context, id string, clientConn *websocket.Conn, openaiKey string, model string, voice string, systemPrompt string, maxBufferSize int) (*ClientSession, error) {
+	proxy, err := openai.NewProxy(ctx, openaiKey, model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OpenAI proxy: %w", err)
+	}
+
+	if err := proxy.Setup(ctx, systemPrompt, voice, openai.AudioFormatPCM); err != nil {
+		_ = proxy.Close()
+		return nil, fmt.Errorf("failed to setup OpenAI session: %w", err)
+	}
+
+	// Configure WebSocket for better performance
+	clientConn.SetReadLimit(512 * 1024) // 512KB max message
+	clientConn.EnableWriteCompression(true)
+	_ = clientConn.SetCompressionLevel(6)
+
+	session := newBaseSession(id, ProviderOpenAI, clientConn, maxBufferSize)
+	session.OpenAIProxy = proxy
+	return session, nil
+}
+
+// NewOpenAITwilioClientSession creates an OpenAI session for Twilio voice calls (mu-law audio)
+func NewOpenAITwilioClientSession(ctx context.Context, id string, clientConn *websocket.Conn, openaiKey string, model string, voice string, systemPrompt string, maxBufferSize int) (*ClientSession, error) {
+	proxy, err := openai.NewProxy(ctx, openaiKey, model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OpenAI proxy: %w", err)
+	}
+
+	if err := proxy.Setup(ctx, systemPrompt, voice, openai.AudioFormatMuLaw); err != nil {
+		_ = proxy.Close()
+		return nil, fmt.Errorf("failed to setup OpenAI Twilio session: %w", err)
+	}
+
+	// Twilio doesn't support WebSocket compression
+	clientConn.EnableWriteCompression(false)
+
+	session := newBaseSession(id, ProviderOpenAI, clientConn, maxBufferSize)
+	session.OpenAIProxy = proxy
+	session.IsTwilio = true
 	return session, nil
 }
 
@@ -111,6 +171,182 @@ func (cs *ClientSession) StartTwilio() {
 	cs.setupTwilioGeminiCallbacks()
 	cs.GeminiProxy.StartReceiving(cs.ctx)
 	go cs.handleClientMessagesFromTwilio()
+}
+
+// StartOpenAI begins the bidirectional message handling for OpenAI WebSocket clients (PCM audio)
+func (cs *ClientSession) StartOpenAI() {
+	go cs.writePump()
+	cs.setupOpenAICallbacks()
+	cs.OpenAIProxy.StartReceiving(cs.ctx)
+	cs.queueMessage(messages.NewStatusMessage(cs.ID, "connected", "Session established"))
+	go cs.handleClientMessages()
+}
+
+// StartOpenAITwilio begins the bidirectional message handling for OpenAI + Twilio (mu-law audio)
+func (cs *ClientSession) StartOpenAITwilio() {
+	go cs.writePump()
+	cs.setupOpenAITwilioCallbacks()
+	cs.OpenAIProxy.StartReceiving(cs.ctx)
+	go cs.handleOpenAITwilioMessages()
+}
+
+// setupOpenAICallbacks configures callbacks for regular WebSocket clients using OpenAI
+func (cs *ClientSession) setupOpenAICallbacks() {
+	cs.OpenAIProxy.OnAudioRaw = func(base64Data string) {
+		cs.queueMessage(messages.NewAudioMessage(cs.ID, base64Data))
+	}
+
+	cs.OpenAIProxy.OnText = func(text string) {
+		cs.queueMessage(messages.NewTextMessage(cs.ID, text))
+	}
+
+	cs.OpenAIProxy.OnComplete = func() {
+		cs.queueMessage(messages.NewStatusMessage(cs.ID, "turn_complete", ""))
+	}
+
+	cs.OpenAIProxy.OnError = func(err error) {
+		log.Printf("❌ [%s] OpenAI error: %v", cs.ID[:8], err)
+		cs.queueMessage(messages.NewErrorMessage(cs.ID, messages.ErrCodeGeminiError, err.Error()))
+	}
+
+	cs.OpenAIProxy.OnToolCall = func(functionCalls []*responses.ToolUnionParam) {
+		cs.handleOpenAIToolCalls(functionCalls)
+	}
+}
+
+// setupOpenAITwilioCallbacks configures callbacks for Twilio sessions using OpenAI.
+// Since OpenAI is configured with mu-law format, audio passes through directly — no conversion needed.
+func (cs *ClientSession) setupOpenAITwilioCallbacks() {
+	cs.OpenAIProxy.OnAudioRaw = func(base64Data string) {
+		cs.mu.RLock()
+		streamSid := cs.StreamSid
+		cs.mu.RUnlock()
+
+		if streamSid == "" {
+			log.Printf("⚠️ [%s] Received audio from OpenAI but no StreamSid set yet", cs.ID[:8])
+			return
+		}
+
+		// mu-law audio passes through directly — OpenAI outputs mu-law when configured with audio/pcmu
+		cs.queueMessage(messages.NewTwilioMessageBack(streamSid, base64Data))
+	}
+
+	cs.OpenAIProxy.OnText = func(text string) {
+		log.Printf("📝 [%s] OpenAI text (Twilio session): %s", cs.ID[:8], text)
+	}
+
+	cs.OpenAIProxy.OnComplete = func() {
+		log.Printf("✅ [%s] OpenAI turn complete (Twilio session)", cs.ID[:8])
+	}
+
+	cs.OpenAIProxy.OnError = func(err error) {
+		log.Printf("❌ [%s] OpenAI error: %v", cs.ID[:8], err)
+	}
+
+	cs.OpenAIProxy.OnToolCall = func(functionCalls []*responses.ToolUnionParam) {
+		cs.handleOpenAIToolCalls(functionCalls)
+	}
+}
+
+// handleOpenAIToolCalls processes function calls from OpenAI
+func (cs *ClientSession) handleOpenAIToolCalls(functionCalls []*responses.ToolUnionParam) {
+	for _, fc := range functionCalls {
+		if fc.OfFunction == nil {
+			continue
+		}
+		log.Printf("🔧 [%s] OpenAI function call: %s", cs.ID[:8], fc.OfFunction.Name)
+
+		// Handle known functions
+		var output string
+		switch fc.OfFunction.Name {
+		case "hangUp":
+			output = `{"status": "call_ended"}`
+			log.Printf("📞 [%s] HangUp requested", cs.ID[:8])
+		default:
+			output = fmt.Sprintf(`{"error": "unknown function: %s"}`, fc.OfFunction.Name)
+			log.Printf("⚠️ [%s] Unknown OpenAI function: %s", cs.ID[:8], fc.OfFunction.Name)
+		}
+
+		if err := cs.OpenAIProxy.SendToolResponse(fc.OfFunction.Name, output); err != nil {
+			log.Printf("❌ [%s] Failed to send tool response to OpenAI: %v", cs.ID[:8], err)
+		}
+	}
+}
+
+// handleOpenAITwilioMessages processes Twilio WebSocket messages for OpenAI sessions.
+// Since OpenAI is configured with mu-law format, Twilio mu-law audio is forwarded directly.
+func (cs *ClientSession) handleOpenAITwilioMessages() {
+	defer func() { _ = cs.Close() }()
+	for {
+		select {
+		case <-cs.CloseChan:
+			return
+		default:
+			_, message, err := cs.ClientConn.ReadMessage()
+			if err != nil {
+				if !cs.IsClosed() {
+					log.Printf("❌ [%s] Twilio WebSocket read error: %v", cs.ID[:8], err)
+				}
+				return
+			}
+
+			cs.mu.Lock()
+			cs.LastActivity = time.Now()
+			cs.mu.Unlock()
+
+			var msg map[string]interface{}
+			if err := sonic.Unmarshal(message, &msg); err != nil {
+				log.Printf("⚠️ [%s] Failed to parse Twilio message: %v", cs.ID[:8], err)
+				continue
+			}
+
+			event, ok := msg["event"].(string)
+			if !ok {
+				continue
+			}
+
+			switch event {
+			case "connected":
+				log.Printf("📞 [%s] Twilio stream connected (OpenAI)", cs.ID[:8])
+
+			case "start":
+				startData, ok := msg["start"].(map[string]interface{})
+				if !ok {
+					continue
+				}
+				streamSid, ok := startData["streamSid"].(string)
+				if !ok {
+					continue
+				}
+				cs.mu.Lock()
+				cs.StreamSid = streamSid
+				cs.mu.Unlock()
+				log.Printf("📞 [%s] Twilio stream started (OpenAI), StreamSid: %s", cs.ID[:8], streamSid)
+
+			case "media":
+				media, ok := msg["media"].(map[string]interface{})
+				if !ok {
+					continue
+				}
+				payloadStr, ok := media["payload"].(string)
+				if !ok {
+					continue
+				}
+
+				// Forward mu-law audio directly to OpenAI (no conversion needed)
+				if err := cs.OpenAIProxy.SendAudio(payloadStr); err != nil {
+					log.Printf("❌ [%s] Failed to send audio to OpenAI: %v", cs.ID[:8], err)
+				}
+
+			case "stop":
+				log.Printf("📞 [%s] Twilio stream stopped (OpenAI)", cs.ID[:8])
+				return
+
+			case "mark":
+				log.Printf("📞 [%s] Twilio mark event received", cs.ID[:8])
+			}
+		}
+	}
 }
 
 // setupGeminiCallbacks configures callbacks for standard WebSocket clients
@@ -195,7 +431,7 @@ func (cs *ClientSession) setupGeminiErrorCallback() {
 		if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) ||
 			websocket.IsUnexpectedCloseError(err) {
 			log.Printf("🔌 [%s] Closing session due to Gemini connection error", cs.ID[:8])
-			cs.Close()
+			_ = cs.Close()
 		}
 	}
 }
@@ -292,14 +528,17 @@ func (cs *ClientSession) Close() error {
 		cs.AudioBuffer.Clear()
 	}
 
-	// Close Gemini connection
+	// Close AI proxy connection
 	if cs.GeminiProxy != nil {
-		cs.GeminiProxy.Close()
+		_ = cs.GeminiProxy.Close()
+	}
+	if cs.OpenAIProxy != nil {
+		_ = cs.OpenAIProxy.Close()
 	}
 
 	// Close client connection - don't write close message as writePump is stopped
 	if cs.ClientConn != nil {
-		cs.ClientConn.Close()
+		_ = cs.ClientConn.Close()
 	}
 
 	return nil
@@ -309,7 +548,7 @@ func (cs *ClientSession) Close() error {
 // Twilio sends: connected, start, media, stop events.
 // Audio is streamed directly to Gemini (no buffering) — Gemini handles VAD.
 func (cs *ClientSession) handleClientMessagesFromTwilio() {
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 	for {
 		select {
 		case <-cs.CloseChan:
@@ -417,7 +656,7 @@ func muLawToPCMUpsample(muLawData []byte) []byte {
 }
 
 func (cs *ClientSession) handleClientMessages() {
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 
 	for {
 		select {
@@ -513,21 +752,26 @@ func (cs *ClientSession) handleControlMessage(payload *messages.ControlPayload) 
 	}
 }
 
-// handleEndTurn flushes the audio buffer and sends to Gemini
+// handleEndTurn flushes the audio buffer and sends to the AI provider
 func (cs *ClientSession) handleEndTurn() {
 	if cs.AudioBuffer.IsEmpty() {
 		log.Printf("⚠️ [%s] end_turn received but buffer is empty, ignoring", cs.ID[:8])
 		return
 	}
-	// Get chunk count before flushing (Flush clears the buffer)
 	chunkCount := cs.AudioBuffer.ChunkCount()
-
-	// Flush all buffered audio
 	audioData := cs.AudioBuffer.Flush()
-	log.Printf("📤 [%s] Sending batch audio to Gemini: %d bytes (%d chunks)", cs.ID[:8], len(audioData), chunkCount)
+	log.Printf("📤 [%s] Sending batch audio: %d bytes (%d chunks)", cs.ID[:8], len(audioData), chunkCount)
 
-	if err := cs.GeminiProxy.SendAudioBatch(audioData); err != nil {
-		log.Printf("❌ [%s] Failed to send audio to Gemini: %v", cs.ID[:8], err)
+	var err error
+	switch cs.Provider {
+	case ProviderOpenAI:
+		err = cs.OpenAIProxy.SendAudioBytes(audioData)
+	default:
+		err = cs.GeminiProxy.SendAudioBatch(audioData)
+	}
+
+	if err != nil {
+		log.Printf("❌ [%s] Failed to send audio: %v", cs.ID[:8], err)
 		cs.queueMessage(messages.NewErrorMessage(cs.ID, messages.ErrCodeGeminiError, err.Error()))
 	}
 }
@@ -549,11 +793,9 @@ func (cs *ClientSession) handleToolCalls(functionCalls []*genai.FunctionCall) {
 		var response map[string]any
 
 		switch fc.Name {
-		// Documentation function
-		case "GetCompanyInformationsDocs":
-			docs := functions.GetCompanyInformationsDocs()
-			response = map[string]any{"output": docs}
-			log.Printf("🔧 [%s] Returning company docs (%d chars)", cs.ID[:8], len(docs))
+		case "hangUp":
+			response = map[string]any{"status": "call_ended"}
+			log.Printf("📞 [%s] HangUp requested via Gemini", cs.ID[:8])
 
 		default:
 			response = map[string]any{"error": fmt.Sprintf("Unknown function: %s", fc.Name)}
@@ -576,6 +818,7 @@ func (cs *ClientSession) handleToolCalls(functionCalls []*genai.FunctionCall) {
 	}
 }
 
+// MuLawByteToPCMBytes converts a single mu-law byte to its 16-bit PCM equivalent in little-endian bytes.
 func (cs *ClientSession) MuLawByteToPCMBytes(b byte) []byte {
 	pcmVal := muLawToPcmTable[b]
 	res := make([]byte, 2)
@@ -620,6 +863,7 @@ func decodeMuLawByte(uVal byte) int16 {
 	return sample
 }
 
+// PcmToMuLawByte converts a 16-bit PCM sample to a mu-law encoded byte.
 func PcmToMuLawByte(pcm int16) byte {
 	const (
 		bias = 0x84 // 132
