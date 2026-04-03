@@ -127,6 +127,11 @@ func (gp *Proxy) handleResponse(resp *genai.LiveServerMessage) {
 	if resp.ToolCall != nil && len(resp.ToolCall.FunctionCalls) > 0 {
 		log.Printf("📥 Received from Gemini: %d function call(s)", len(resp.ToolCall.FunctionCalls))
 		if gp.OnToolCall != nil {
+			for _, tool := range resp.ToolCall.FunctionCalls {
+				if tool.Name == "hangUp" {
+					gp.Close()
+				}
+			}
 			gp.OnToolCall(resp.ToolCall.FunctionCalls)
 		}
 	}
@@ -236,7 +241,6 @@ func (gp *Proxy) sendRealtimeInput(data []byte) error {
 			Data:     data,
 		},
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to send audio: %w", err)
 	}

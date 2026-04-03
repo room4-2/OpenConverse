@@ -2,13 +2,12 @@ package openai
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
-	"sync"
-
-	"encoding/base64"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/bytedance/sonic"
 	"github.com/gorilla/websocket"
@@ -261,6 +260,9 @@ func (op *Proxy) handleResponse(msg []byte) {
 		}
 		// If this is a function_call item, fire the OnToolCall callback
 		if itemDone.Item.Type == "function_call" && op.OnToolCall != nil {
+			if itemDone.Item.Name == "hangUp" {
+				op.Close()
+			}
 			fc := &responses.FunctionToolParam{
 				Name: itemDone.Item.Name,
 			}
