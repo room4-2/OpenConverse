@@ -1,5 +1,5 @@
 repos:
-  # General file hygiene
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -12,7 +12,13 @@ repos:
         args: ["--maxkb=1024"]
       - id: detect-private-key
 
-  # Go formatting
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
+
   - repo: https://github.com/dnephin/pre-commit-golang
     rev: v0.5.1
     hooks:
@@ -20,7 +26,7 @@ repos:
       - id: go-vet
       - id: go-unit-tests
 
-  # golangci-lint
+
   - repo: https://github.com/golangci/golangci-lint
     rev: v2.1.6
     hooks:
